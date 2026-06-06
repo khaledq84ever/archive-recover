@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>
+      Archive Recover — YouTube video recovery from the Internet Archive
+    </title>
+    <style>
+      :root {
+        --bg: #0b0f17;
+        --panel: #121826;
+        --panel2: #0e1320;
+        --line: #1e2940;
+        --txt: #e6edf7;
+        --mut: #8aa0c0;
+        --acc: #ff4d4f;
+        --acc2: #3b82f6;
+        --ok: #22c55e;
+        --warn: #f59e0b;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--txt);
+        font:
+          15px/1.5 system-ui,
+          Segoe UI,
+          Roboto,
+          sans-serif;
+      }
+      header {
+        padding: 26px 20px;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(180deg, #101728, #0b0f17);
+      }
+      header h1 {
+        margin: 0;
+        font-size: 22px;
+        letter-spacing: 0.3px;
+      }
+      header h1 span {
+        color: var(--acc);
+      }
+      header p {
+        margin: 6px 0 0;
+        color: var(--mut);
+        font-size: 13px;
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px;
+        margin-bottom: 18px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      input[type="text"] {
+        flex: 1;
+        min-width: 240px;
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        color: var(--txt);
+        padding: 12px 14px;
+        border-radius: 10px;
+        font-size: 15px;
+        outline: none;
+      }
+      input[type="text"]:focus {
+        border-color: var(--acc2);
+      }
+      button {
+        background: var(--acc);
+        color: #fff;
+        border: 0;
+        padding: 12px 18px;
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 15px;
+      }
+      button.secondary {
+        background: #243049;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      label.chk {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--mut);
+        font-size: 13px;
+        margin-top: 10px;
+        cursor: pointer;
+      }
+      h2 {
+        font-size: 15px;
+        margin: 0 0 12px;
+        color: var(--mut);
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+      }
+      .jobs {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .job {
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px;
+      }
+      .job .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .pill {
+        font-size: 12px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-weight: 600;
+      }
+      .pill.discovering {
+        background: #1e2a44;
+        color: #9ec1ff;
+      }
+      .pill.recovering {
+        background: #13331f;
+        color: #7ff0a8;
+      }
+      .pill.done {
+        background: #0f2a17;
+        color: var(--ok);
+      }
+      .pill.error,
+      .pill.cancelled {
+        background: #3a1414;
+        color: #ff9d9d;
+      }
+      .pill.queued {
+        background: #2a2333;
+        color: #d7b3ff;
+      }
+      .bar {
+        height: 8px;
+        background: #0a1120;
+        border-radius: 999px;
+        overflow: hidden;
+        margin: 12px 0;
+      }
+      .bar > i {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, var(--acc2), var(--ok));
+        width: 0;
+        transition: width 0.4s;
+      }
+      .stats {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        color: var(--mut);
+        font-size: 13px;
+      }
+      .stats b {
+        color: var(--txt);
+      }
+      .log {
+        margin-top: 10px;
+        max-height: 120px;
+        overflow: auto;
+        background: #070b12;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font:
+          12px/1.5 ui-monospace,
+          Menlo,
+          Consolas,
+          monospace;
+        color: #9fb3d1;
+      }
+      .files {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 420px;
+        overflow: auto;
+      }
+      .file {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px 12px;
+      }
+      .file .name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .file .meta {
+        color: var(--mut);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      a.dl {
+        background: #243049;
+        color: #cfe0ff;
+        text-decoration: none;
+        padding: 7px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .muted {
+        color: var(--mut);
+        font-size: 13px;
+      }
+      .hint {
+        color: var(--mut);
+        font-size: 12px;
+        margin-top: 8px;
+      }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap" style="padding-bottom: 0">
+        <h1>Archive <span>Recover</span></h1>
+        <p>
+          Recover deleted YouTube videos from the Internet Archive (Wayback
+          Machine) at the best quality the archive holds.
+        </p>
+      </div>
+    </header>
+
+    <div class="wrap">
+      <div class="card">
+        <h2>Start a recovery</h2>
+        <div class="row">
+          <input
+            id="target"
+            type="text"
+            placeholder="Channel, @handle, username, video URL, or 11-char video ID — e.g. KhaleDQ84EveR"
+            autocomplete="off"
+          />
+          <button id="go">Recover</button>
+        </div>
+        <label class="chk"
+          ><input type="checkbox" id="reuse" checked /> Save into the main
+          recovered-videos folder (shared with the existing 100+
+          recoveries)</label
+        >
+        <div class="hint">
+          Tip: a channel/username discovers and recovers every archived upload
+          it can find. A single URL/ID recovers just that one video.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="topbar">
+          <h2 style="margin: 0">Live jobs</h2>
+          <span id="conn" class="muted">connecting…</span>
+        </div>
+        <div id="jobs" class="jobs">
+          <div class="muted">No jobs yet. Start one above.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="topbar">
+          <h2 style="margin: 0">Recovered videos</h2>
+          <button class="secondary" id="refresh">Refresh</button>
+        </div>
+        <div id="files" class="files"><div class="muted">Loading…</div></div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (s) => document.querySelector(s);
+      function fmtSize(b) {
+        if (!b) return "0 B";
+        const u = ["B", "KB", "MB", "GB", "TB"];
+        const i = Math.floor(Math.log(b) / Math.log(1024));
+        return (b / Math.pow(1024, i)).toFixed(i ? 1 : 0) + " " + u[i];
+      }
+
+      async function start() {
+        const target = $("#target").value.trim();
+        if (!target) return;
+        $("#go").disabled = true;
+        try {
+          const r = await fetch("/api/recover", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ target, reuse: $("#reuse").checked }),
+          });
+          const j = await r.json();
+          if (j.error) alert(j.error);
+          else $("#target").value = "";
+        } catch (e) {
+          alert("Failed: " + e.message);
+        }
+        $("#go").disabled = false;
+      }
+      $("#go").onclick = start;
+      $("#target").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") start();
+      });
+
+      const jobsEl = $("#jobs");
+      const jobState = new Map();
+      function renderJobs() {
+        const list = [...jobState.values()].sort(
+          (a, b) => b.startedAt - a.startedAt,
+        );
+        if (!list.length) {
+          jobsEl.innerHTML =
+            '<div class="muted">No jobs yet. Start one above.</div>';
+          return;
+        }
+        jobsEl.innerHTML = list
+          .map((j) => {
+            const pct = j.total
+              ? Math.round((j.attempted / j.total) * 100)
+              : j.status === "discovering"
+                ? 0
+                : 0;
+            const canCancel =
+              j.status === "discovering" ||
+              j.status === "recovering" ||
+              j.status === "queued";
+            return `<div class="job">
+      <div class="top">
+        <div><b>${j.label}</b> <span class="muted">· ${j.kind}</span></div>
+        <span class="pill ${j.status}">${j.status}</span>
+      </div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="stats">
+        <span>discovered <b>${j.discovered}</b></span>
+        <span>attempted <b>${j.attempted}</b>${j.total ? ` / ${j.total}` : ""}</span>
+        <span>recovered <b style="color:var(--ok)">${j.recovered}</b></span>
+        <span>unrecoverable <b>${j.failed}</b></span>
+        ${canCancel ? `<a href="#" class="muted" data-cancel="${j.id}" style="margin-left:auto">cancel</a>` : ""}
+      </div>
+      <div class="log">${(j.logs || [])
+        .slice(-8)
+        .map((l) => l.replace(/</g, "&lt;"))
+        .join("<br>")}</div>
+    </div>`;
+          })
+          .join("");
+        jobsEl.querySelectorAll("[data-cancel]").forEach(
+          (a) =>
+            (a.onclick = async (e) => {
+              e.preventDefault();
+              await fetch("/api/jobs/" + a.dataset.cancel + "/cancel", {
+                method: "POST",
+              });
+            }),
+        );
+      }
+
+      function connect() {
+        const es = new EventSource("/api/stream");
+        es.onopen = () => ($("#conn").textContent = "● live");
+        es.onerror = () => ($("#conn").textContent = "reconnecting…");
+        es.onmessage = (e) => {
+          try {
+            const j = JSON.parse(e.data);
+            jobState.set(j.id, j);
+            renderJobs();
+            if (j.status === "done") loadFiles();
+          } catch {}
+        };
+      }
+
+      async function loadFiles() {
+        try {
+          const r = await fetch("/api/files");
+          const list = await r.json();
+          const el = $("#files");
+          if (!list.length) {
+            el.innerHTML = '<div class="muted">No recovered files yet.</div>';
+            return;
+          }
+          el.innerHTML =
+            `<div class="muted" style="margin-bottom:4px">${list.length} files · ${fmtSize(list.reduce((s, f) => s + f.size, 0))} total</div>` +
+            list
+              .map(
+                (f) => `<div class="file">
+        <div class="name" title="${f.file.replace(/"/g, "")}">${f.file.replace(/</g, "&lt;")}</div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <span class="meta">${fmtSize(f.size)}</span>
+          <a class="dl" href="/download?file=${encodeURIComponent(f.file)}">Download</a>
+        </div>
+      </div>`,
+              )
+              .join("");
+        } catch (e) {
+          $("#files").innerHTML =
+            '<div class="muted">Failed to load files.</div>';
+        }
+      }
+      $("#refresh").onclick = loadFiles;
+
+      connect();
+      loadFiles();
+      setInterval(loadFiles, 15000);
+    </script>
+  </body>
+</html>
