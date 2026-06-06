@@ -262,6 +262,34 @@
         padding: 1px 5px;
         border-radius: 5px;
       }
+      .nv-note {
+        margin: 8px 0;
+        line-height: 1.5;
+      }
+      .nv-paste {
+        margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .nv-paste textarea {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        color: var(--txt);
+        padding: 12px 14px;
+        font-size: 13px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        resize: vertical;
+        outline: none;
+      }
+      .nv-paste textarea:focus {
+        border-color: #3f3f46;
+      }
+      .nv-paste .btn {
+        align-self: flex-start;
+      }
 
       /* jobs (compact, only when present) */
       #jobs {
@@ -628,6 +656,9 @@
             <button class="btn ghost" id="ckPick">
               1 · Upload cookies.txt
             </button>
+            <button class="btn ghost" id="ckPasteToggle">
+              …or paste cookies
+            </button>
             <button class="btn" id="grabLive" disabled>
               2 · Download 74 new videos
             </button>
@@ -635,22 +666,42 @@
               + collab re-uploads
             </button>
           </div>
+          <div class="nv-paste" id="ckPasteBox" hidden>
+            <textarea
+              id="ckPaste"
+              rows="4"
+              placeholder="Paste the cookies.txt text here (starts with '# Netscape HTTP Cookie File')…"
+            ></textarea>
+            <button class="btn" id="ckPasteSave">Save pasted cookies</button>
+          </div>
           <details class="nv-how">
-            <summary>How do I get the cookies file? (phone, 1 minute)</summary>
+            <summary>How do I get the cookies on my phone? (~1 minute)</summary>
+            <p class="nv-note">
+              ⚠️ <b>Chrome for Android can’t do this</b> — it has no extensions.
+              Use <b>Firefox for Android</b> (free, Play Store), which can:
+            </p>
             <ol>
               <li>
-                Install <b>Kiwi Browser</b> (Android) and log into youtube.com.
+                Open <b>Firefox</b>, go to <b>youtube.com</b> and make sure
+                you’re <b>logged in</b>.
               </li>
               <li>
-                Add the <b>“Get cookies.txt LOCALLY”</b> extension from the
-                Chrome Web Store.
+                Menu → <b>Add-ons</b> → install <b>“cookies.txt”</b> (by Lennon
+                Hill) or <b>“Get cookies.txt LOCALLY”</b>.
               </li>
               <li>
-                On youtube.com tap the extension → <b>Export</b> → it saves
-                <code>cookies.txt</code> to Downloads.
+                While on youtube.com, open the add-on → <b>Export</b> /
+                <b>Copy</b>.
               </li>
-              <li>Come back here and tap <b>“1 · Upload cookies.txt”</b>.</li>
+              <li>
+                Back here: tap <b>“Upload cookies.txt”</b> (if it saved a file)
+                <i>or</i> <b>“…or paste cookies”</b> and paste the copied text.
+              </li>
             </ol>
+            <p class="nv-note">
+              On a computer, Chrome works too — install the same extension from
+              the Chrome Web Store and export.
+            </p>
           </details>
         </div>
         <div id="jobs"></div>
@@ -874,27 +925,43 @@
           }
         } catch {}
       }
+      async function saveCookies(cookies) {
+        $("#ckStatus").textContent = "saving…";
+        $("#ckStatus").className = "nv-status";
+        const r = await fetch("/api/cookies", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cookies }),
+        });
+        const j = await r.json();
+        if (j.error) {
+          alert(j.error);
+          $("#ckStatus").textContent = "not saved";
+          $("#ckStatus").className = "nv-status bad";
+          return false;
+        }
+        await refreshCookies();
+        return true;
+      }
+      $("#ckPasteToggle").onclick = () => {
+        const box = $("#ckPasteBox");
+        box.hidden = !box.hidden;
+        if (!box.hidden) $("#ckPaste").focus();
+      };
+      $("#ckPasteSave").onclick = async () => {
+        const txt = $("#ckPaste").value.trim();
+        if (!txt) return;
+        if (await saveCookies(txt)) {
+          $("#ckPaste").value = "";
+          $("#ckPasteBox").hidden = true;
+        }
+      };
       $("#ckPick").onclick = () => $("#ckFile").click();
       $("#ckFile").addEventListener("change", async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        $("#ckStatus").textContent = "uploading…";
-        $("#ckStatus").className = "nv-status";
-        const cookies = await file.text();
         try {
-          const r = await fetch("/api/cookies", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ cookies }),
-          });
-          const j = await r.json();
-          if (j.error) {
-            alert(j.error);
-            $("#ckStatus").textContent = "upload failed";
-            $("#ckStatus").className = "nv-status bad";
-          } else {
-            await refreshCookies();
-          }
+          await saveCookies(await file.text());
         } catch (err) {
           alert("Upload failed: " + err.message);
         }
