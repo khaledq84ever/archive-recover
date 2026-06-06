@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { existsSync, statSync, createReadStream } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { parseTarget, runJob, listRecovered } from "./recover.js";
+import { getThumb, getDuration } from "./media.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -124,11 +125,46 @@ app.get("/api/stream", (req, res) => {
   req.on("close", () => sseClients.delete(res));
 });
 
-// List recovered files (optionally within a job's subfolder)
-app.get("/api/files", (req, res) => {
+// Turn an ugly recovery filename into a clean display title.
+function prettyTitle(file) {
+  return (
+    file
+      .replace(/\.[^.]+$/, "") // drop extension
+      .replace(/\s*\[[A-Za-z0-9_-]{11}\]\s*$/, "") // drop trailing [id]
+      .replace(/^web\.archive-youtube_video_[A-Za-z0-9_-]+$/, "Untitled video")
+      .replace(/^web\.archive-youtube_video_/, "")
+      .replace(/_/g, " ")
+      .replace(/\s+/g, " ")
+      .trim() || "Untitled video"
+  );
+}
+
+// List recovered files (optionally within a job's subfolder), enriched with
+// a clean title and (cached) duration.
+app.get("/api/files", async (req, res) => {
   const sub = req.query.dir ? path.basename(String(req.query.dir)) : "";
   const dir = sub ? path.join(DATA_ROOT, sub) : DATA_ROOT;
-  res.json(listRecovered(dir));
+  const files = listRecovered(dir);
+  const out = await Promise.all(
+    files.map(async (f) => ({
+      ...f,
+      title: prettyTitle(f.file),
+      ext: (f.file.split(".").pop() || "").toLowerCase(),
+      duration: await getDuration(dir, f.file),
+    })),
+  );
+  res.json(out);
+});
+
+// Thumbnail JPEG for a video (generated + cached on first request)
+app.get("/thumb", async (req, res) => {
+  const sub = req.query.dir ? path.basename(String(req.query.dir)) : "";
+  const dir = sub ? path.join(DATA_ROOT, sub) : DATA_ROOT;
+  const file = path.basename(String(req.query.file || ""));
+  const thumb = await getThumb(dir, file);
+  if (!thumb) return res.status(404).send("no thumb");
+  res.set("Cache-Control", "public, max-age=86400");
+  res.sendFile(thumb);
 });
 
 // Resolve a request's file param to a real, existing path inside DATA_ROOT.

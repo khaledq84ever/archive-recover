@@ -3,412 +3,688 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>
-      Archive Recover — YouTube video recovery from the Internet Archive
-    </title>
+    <title>Archive Recover</title>
     <style>
       :root {
-        --bg: #0b0f17;
-        --panel: #121826;
-        --panel2: #0e1320;
-        --line: #1e2940;
-        --txt: #e6edf7;
-        --mut: #8aa0c0;
-        --acc: #ff4d4f;
-        --acc2: #3b82f6;
-        --ok: #22c55e;
-        --warn: #f59e0b;
+        --bg: #0a0a0b;
+        --surface: #141416;
+        --surface2: #1c1c1f;
+        --line: #2a2a2e;
+        --txt: #f4f4f5;
+        --mut: #a1a1aa;
+        --acc: #fff;
+        --brand: #ff5252;
+        --ok: #34d399;
+        --r: 16px;
+        --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
       }
       * {
         box-sizing: border-box;
       }
+      html,
       body {
         margin: 0;
+      }
+      body {
         background: var(--bg);
         color: var(--txt);
-        font:
-          15px/1.5 system-ui,
-          Segoe UI,
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
           Roboto,
+          Helvetica,
+          Arial,
           sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
-      header {
-        padding: 26px 20px;
-        border-bottom: 1px solid var(--line);
-        background: linear-gradient(180deg, #101728, #0b0f17);
-      }
-      header h1 {
-        margin: 0;
-        font-size: 22px;
-        letter-spacing: 0.3px;
-      }
-      header h1 span {
-        color: var(--acc);
-      }
-      header p {
-        margin: 6px 0 0;
-        color: var(--mut);
-        font-size: 13px;
+      a {
+        color: inherit;
       }
       .wrap {
-        max-width: 980px;
+        max-width: 1240px;
         margin: 0 auto;
-        padding: 20px;
+        padding: 0 22px;
       }
-      .card {
-        background: var(--panel);
+
+      /* top bar */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        backdrop-filter: blur(12px);
+        background: rgba(10, 10, 11, 0.72);
+        border-bottom: 1px solid var(--line);
+      }
+      .nav .wrap {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        height: 64px;
+      }
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        font-size: 17px;
+        letter-spacing: -0.01em;
+      }
+      .logo .dot {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        background: var(--brand);
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-size: 14px;
+      }
+      .search {
+        flex: 1;
+        max-width: 520px;
+        margin: 0 auto;
+        position: relative;
+      }
+      .search input {
+        width: 100%;
+        height: 42px;
+        border-radius: 999px;
         border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 18px;
-        margin-bottom: 18px;
+        background: var(--surface);
+        color: var(--txt);
+        padding: 0 16px 0 42px;
+        font-size: 14px;
+        outline: none;
       }
-      .row {
+      .search input:focus {
+        border-color: #3f3f46;
+      }
+      .search svg {
+        position: absolute;
+        left: 14px;
+        top: 12px;
+        width: 18px;
+        height: 18px;
+        color: var(--mut);
+      }
+      .live {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12.5px;
+        color: var(--mut);
+        white-space: nowrap;
+      }
+      .live .pulse {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #3f3f46;
+      }
+      .live.on .pulse {
+        background: var(--ok);
+        box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.6);
+        animation: pulse 1.8s infinite;
+      }
+      @keyframes pulse {
+        0% {
+          box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5);
+        }
+        70% {
+          box-shadow: 0 0 0 7px rgba(52, 211, 153, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
+        }
+      }
+
+      /* hero / recover */
+      .hero {
+        padding: 34px 0 8px;
+      }
+      .hero h1 {
+        margin: 0 0 6px;
+        font-size: 26px;
+        letter-spacing: -0.02em;
+      }
+      .hero p {
+        margin: 0 0 18px;
+        color: var(--mut);
+        font-size: 14.5px;
+      }
+      .recover {
         display: flex;
         gap: 10px;
         flex-wrap: wrap;
       }
-      input[type="text"] {
+      .recover input {
         flex: 1;
         min-width: 240px;
-        background: var(--panel2);
+        height: 48px;
+        border-radius: 12px;
         border: 1px solid var(--line);
+        background: var(--surface);
         color: var(--txt);
-        padding: 12px 14px;
-        border-radius: 10px;
+        padding: 0 16px;
         font-size: 15px;
         outline: none;
       }
-      input[type="text"]:focus {
-        border-color: var(--acc2);
+      .recover input:focus {
+        border-color: #3f3f46;
       }
-      button {
-        background: var(--acc);
-        color: #fff;
+      .btn {
+        height: 48px;
+        padding: 0 22px;
+        border-radius: 12px;
         border: 0;
-        padding: 12px 18px;
-        border-radius: 10px;
-        font-weight: 600;
         cursor: pointer;
+        font-weight: 600;
         font-size: 15px;
+        background: var(--brand);
+        color: #fff;
+        transition: filter 0.15s;
       }
-      button.secondary {
-        background: #243049;
+      .btn:hover {
+        filter: brightness(1.08);
       }
-      button:disabled {
+      .btn:disabled {
         opacity: 0.5;
         cursor: not-allowed;
       }
-      label.chk {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: var(--mut);
-        font-size: 13px;
-        margin-top: 10px;
-        cursor: pointer;
+      .ghost {
+        background: var(--surface2);
+        color: var(--txt);
+        border: 1px solid var(--line);
       }
-      h2 {
-        font-size: 15px;
-        margin: 0 0 12px;
-        color: var(--mut);
-        text-transform: uppercase;
-        letter-spacing: 0.6px;
-      }
-      .jobs {
+
+      /* jobs (compact, only when present) */
+      #jobs {
+        margin: 18px 0 0;
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 10px;
       }
       .job {
-        background: var(--panel2);
+        background: var(--surface);
         border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 14px;
+        border-radius: 14px;
+        padding: 14px 16px;
       }
-      .job .top {
+      .job .row {
         display: flex;
         justify-content: space-between;
         align-items: center;
         gap: 10px;
         flex-wrap: wrap;
       }
-      .pill {
-        font-size: 12px;
+      .chip {
+        font-size: 11.5px;
+        font-weight: 600;
         padding: 3px 10px;
         border-radius: 999px;
-        font-weight: 600;
+        background: var(--surface2);
+        color: var(--mut);
       }
-      .pill.discovering {
-        background: #1e2a44;
-        color: #9ec1ff;
+      .chip.recovering,
+      .chip.discovering {
+        color: #93c5fd;
       }
-      .pill.recovering {
-        background: #13331f;
-        color: #7ff0a8;
-      }
-      .pill.done {
-        background: #0f2a17;
+      .chip.done {
         color: var(--ok);
       }
-      .pill.error,
-      .pill.cancelled {
-        background: #3a1414;
-        color: #ff9d9d;
+      .chip.error,
+      .chip.cancelled {
+        color: #fca5a5;
       }
-      .pill.queued {
-        background: #2a2333;
-        color: #d7b3ff;
-      }
-      .bar {
-        height: 8px;
-        background: #0a1120;
+      .track {
+        height: 6px;
         border-radius: 999px;
+        background: #27272a;
         overflow: hidden;
-        margin: 12px 0;
+        margin: 10px 0 4px;
       }
-      .bar > i {
+      .track > i {
         display: block;
         height: 100%;
-        background: linear-gradient(90deg, var(--acc2), var(--ok));
+        background: var(--brand);
         width: 0;
         transition: width 0.4s;
       }
-      .stats {
+      .jmeta {
         display: flex;
-        gap: 18px;
+        gap: 16px;
         flex-wrap: wrap;
         color: var(--mut);
-        font-size: 13px;
+        font-size: 12.5px;
       }
-      .stats b {
+      .jmeta b {
         color: var(--txt);
       }
-      .log {
-        margin-top: 10px;
-        max-height: 120px;
-        overflow: auto;
-        background: #070b12;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 8px 10px;
-        font:
-          12px/1.5 ui-monospace,
-          Menlo,
-          Consolas,
-          monospace;
-        color: #9fb3d1;
-      }
-      .files {
+
+      /* section head */
+      .sec {
         display: flex;
-        flex-direction: column;
-        gap: 8px;
-        max-height: 420px;
-        overflow: auto;
-      }
-      .file {
-        display: flex;
+        align-items: baseline;
         justify-content: space-between;
-        align-items: center;
-        gap: 10px;
-        background: var(--panel2);
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        padding: 10px 12px;
+        gap: 12px;
+        margin: 30px 0 16px;
       }
-      .file .name {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+      .sec h2 {
+        margin: 0;
+        font-size: 18px;
+        letter-spacing: -0.01em;
       }
-      .file .meta {
+      .sec .count {
         color: var(--mut);
-        font-size: 12px;
-        white-space: nowrap;
-      }
-      a.dl {
-        background: #243049;
-        color: #cfe0ff;
-        text-decoration: none;
-        padding: 7px 12px;
-        border-radius: 8px;
         font-size: 13px;
-        font-weight: 600;
       }
-      button.play {
-        background: var(--acc);
-        color: #fff;
-        border: 0;
-        padding: 7px 12px;
-        border-radius: 8px;
-        font-size: 13px;
-        font-weight: 600;
+
+      /* gallery */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 18px 16px;
+      }
+      .card {
         cursor: pointer;
+        border-radius: var(--r);
+        overflow: hidden;
+        background: transparent;
+        transition: transform 0.15s;
       }
+      .card:hover {
+        transform: translateY(-3px);
+      }
+      .thumb {
+        position: relative;
+        aspect-ratio: 16/9;
+        border-radius: var(--r);
+        overflow: hidden;
+        background: #18181b;
+        border: 1px solid var(--line);
+      }
+      .thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        opacity: 0;
+        transition: opacity 0.35s;
+      }
+      .thumb img.loaded {
+        opacity: 1;
+      }
+      .thumb .ph {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: #3f3f46;
+      }
+      .thumb .dur {
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+        background: rgba(0, 0, 0, 0.82);
+        color: #fff;
+        font-size: 11.5px;
+        font-weight: 600;
+        padding: 2px 7px;
+        border-radius: 6px;
+        letter-spacing: 0.02em;
+      }
+      .thumb .play {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        opacity: 0;
+        transition: opacity 0.15s;
+        background: rgba(0, 0, 0, 0.32);
+      }
+      .card:hover .play {
+        opacity: 1;
+      }
+      .thumb .play span {
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.92);
+        color: #111;
+        display: grid;
+        place-items: center;
+        font-size: 20px;
+        padding-left: 3px;
+      }
+      .meta {
+        padding: 10px 2px 2px;
+      }
+      .meta .t {
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.35;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .meta .s {
+        margin-top: 4px;
+        color: var(--mut);
+        font-size: 12.5px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .meta .s a {
+        margin-left: auto;
+        color: var(--mut);
+        text-decoration: none;
+      }
+      .meta .s a:hover {
+        color: var(--txt);
+      }
+      .empty {
+        color: var(--mut);
+        padding: 40px 0;
+        text-align: center;
+      }
+
+      /* player */
       .modal {
         position: fixed;
         inset: 0;
-        background: rgba(2, 5, 12, 0.85);
+        z-index: 60;
+        background: rgba(0, 0, 0, 0.86);
         display: none;
         align-items: center;
         justify-content: center;
-        z-index: 50;
         padding: 20px;
       }
       .modal.open {
         display: flex;
       }
-      .modal .box {
-        background: #0b0f17;
+      .player {
+        width: 100%;
+        max-width: 1040px;
+        background: #000;
+        border-radius: 18px;
+        overflow: hidden;
+        box-shadow: var(--shadow);
         border: 1px solid var(--line);
-        border-radius: 14px;
-        max-width: 1000px;
+      }
+      .player video {
         width: 100%;
-        overflow: hidden;
-      }
-      .modal .bar2 {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 10px;
-        padding: 12px 14px;
-        border-bottom: 1px solid var(--line);
-      }
-      .modal .bar2 .t {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-weight: 600;
-      }
-      .modal .bar2 .x {
-        background: #243049;
-        border: 0;
-        color: #cfe0ff;
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 16px;
-        flex: 0 0 auto;
-      }
-      .modal video {
-        width: 100%;
-        max-height: 72vh;
+        max-height: 74vh;
         background: #000;
         display: block;
       }
-      .muted {
-        color: var(--mut);
-        font-size: 13px;
-      }
-      .hint {
-        color: var(--mut);
-        font-size: 12px;
-        margin-top: 8px;
-      }
-      .topbar {
+      .pbar {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        margin-bottom: 12px;
+        gap: 12px;
+        padding: 13px 16px;
+        background: var(--surface);
+      }
+      .pbar .pt {
+        font-weight: 600;
+        font-size: 14.5px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .pbar .sp {
+        flex: 1;
+      }
+      .pbar a,
+      .pbar button {
+        flex: 0 0 auto;
+      }
+      .iconbtn {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        color: var(--txt);
+        cursor: pointer;
+        font-size: 15px;
+        display: grid;
+        place-items: center;
+      }
+      .iconbtn:hover {
+        background: #27272a;
+      }
+      .dlbtn {
+        height: 38px;
+        padding: 0 14px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        color: var(--txt);
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13.5px;
+        font-weight: 600;
+      }
+      footer {
+        color: #52525b;
+        font-size: 12.5px;
+        text-align: center;
+        padding: 40px 0 28px;
       }
     </style>
   </head>
   <body>
-    <header>
-      <div class="wrap" style="padding-bottom: 0">
-        <h1>Archive <span>Recover</span></h1>
-        <p>
-          Recover deleted YouTube videos from the Internet Archive (Wayback
-          Machine) at the best quality the archive holds.
-        </p>
+    <div class="nav">
+      <div class="wrap">
+        <div class="logo"><span class="dot">▾</span> Archive Recover</div>
+        <div class="search">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3-3" />
+          </svg>
+          <input
+            id="q"
+            type="text"
+            placeholder="Search videos…"
+            autocomplete="off"
+          />
+        </div>
+        <div class="live" id="live">
+          <span class="pulse"></span><span id="liveTxt">idle</span>
+        </div>
       </div>
-    </header>
+    </div>
 
     <div class="wrap">
-      <div class="card">
-        <h2>Start a recovery</h2>
-        <div class="row">
+      <section class="hero">
+        <h1>Recovered videos</h1>
+        <p>
+          Restored from the Internet Archive — play any clip right here, or
+          download the original file.
+        </p>
+        <div class="recover">
           <input
             id="target"
             type="text"
-            placeholder="Channel, @handle, username, video URL, or 11-char video ID — e.g. KhaleDQ84EveR"
+            placeholder="Recover more: channel, @handle, username, video URL, or video ID"
             autocomplete="off"
           />
-          <button id="go">Recover</button>
+          <button class="btn" id="go">Recover</button>
         </div>
-        <label class="chk"
-          ><input type="checkbox" id="reuse" checked /> Save into the main
-          recovered-videos folder (shared with the existing 100+
-          recoveries)</label
-        >
-        <div class="hint">
-          Tip: a channel/username discovers and recovers every archived upload
-          it can find. A single URL/ID recovers just that one video.
-        </div>
-      </div>
+        <div id="jobs"></div>
+      </section>
 
-      <div class="card">
-        <div class="topbar">
-          <h2 style="margin: 0">Live jobs</h2>
-          <span id="conn" class="muted">connecting…</span>
-        </div>
-        <div id="jobs" class="jobs">
-          <div class="muted">No jobs yet. Start one above.</div>
-        </div>
+      <div class="sec">
+        <h2>Library</h2>
+        <span class="count" id="count">Loading…</span>
       </div>
-
-      <div class="card">
-        <div class="topbar">
-          <h2 style="margin: 0">Recovered videos</h2>
-          <button class="secondary" id="refresh">Refresh</button>
-        </div>
-        <div id="files" class="files"><div class="muted">Loading…</div></div>
-      </div>
+      <div id="grid" class="grid"></div>
+      <footer>
+        Archive Recover · self-hosted · videos restored via the Wayback Machine
+      </footer>
     </div>
 
-    <div class="modal" id="player">
-      <div class="box">
-        <div class="bar2">
-          <span class="t" id="ptitle"></span>
-          <button class="x" id="pclose" title="Close">✕</button>
+    <div class="modal" id="modal">
+      <div class="player">
+        <video id="video" controls playsinline preload="metadata"></video>
+        <div class="pbar">
+          <span class="pt" id="ptitle"></span>
+          <span class="sp"></span>
+          <a class="dlbtn" id="pdl" href="#">↓ Download</a>
+          <button class="iconbtn" id="pnext" title="Play next">⏭</button>
+          <button class="iconbtn" id="pclose" title="Close (Esc)">✕</button>
         </div>
-        <video id="pvideo" controls playsinline preload="metadata"></video>
       </div>
     </div>
-
-    <script>
-      function openPlayer(encFile, name) {
-        const v = document.getElementById("pvideo");
-        document.getElementById("ptitle").textContent = name;
-        v.src = "/stream?file=" + encFile;
-        document.getElementById("player").classList.add("open");
-        v.play().catch(() => {});
-      }
-      function closePlayer() {
-        const v = document.getElementById("pvideo");
-        v.pause();
-        v.removeAttribute("src");
-        v.load();
-        document.getElementById("player").classList.remove("open");
-      }
-      document.getElementById("pclose").onclick = closePlayer;
-      document.getElementById("player").addEventListener("click", (e) => {
-        if (e.target.id === "player") closePlayer();
-      });
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") closePlayer();
-      });
-    </script>
 
     <script>
       const $ = (s) => document.querySelector(s);
+      const enc = encodeURIComponent;
       function fmtSize(b) {
         if (!b) return "0 B";
         const u = ["B", "KB", "MB", "GB", "TB"];
         const i = Math.floor(Math.log(b) / Math.log(1024));
         return (b / Math.pow(1024, i)).toFixed(i ? 1 : 0) + " " + u[i];
       }
+      function fmtDur(s) {
+        if (s == null) return "";
+        s = Math.round(s);
+        const h = Math.floor(s / 3600),
+          m = Math.floor((s % 3600) / 60),
+          x = s % 60;
+        return (
+          (h ? h + ":" + String(m).padStart(2, "0") : m) +
+          ":" +
+          String(x).padStart(2, "0")
+        );
+      }
 
+      let ALL = [],
+        VIEW = [],
+        curIdx = -1;
+
+      /* ---------- gallery ---------- */
+      function render() {
+        const q = $("#q").value.trim().toLowerCase();
+        VIEW = q
+          ? ALL.filter(
+              (f) =>
+                f.title.toLowerCase().includes(q) ||
+                f.file.toLowerCase().includes(q),
+            )
+          : ALL;
+        $("#count").textContent =
+          `${VIEW.length} video${VIEW.length !== 1 ? "s" : ""}${q ? ` · filtered` : ""} · ${fmtSize(VIEW.reduce((s, f) => s + f.size, 0))}`;
+        const grid = $("#grid");
+        if (!VIEW.length) {
+          grid.innerHTML = `<div class="empty">No videos${q ? " match your search" : " yet"}.</div>`;
+          return;
+        }
+        grid.innerHTML = VIEW.map((f, i) => {
+          const playable = f.ext === "mp4" || f.ext === "webm";
+          return `<div class="card" data-i="${i}" data-play="${playable ? 1 : 0}">
+      <div class="thumb">
+        <div class="ph">▦</div>
+        <img loading="lazy" data-src="/thumb?file=${enc(f.file)}" alt="">
+        ${f.duration != null ? `<div class="dur">${fmtDur(f.duration)}</div>` : ""}
+        ${playable ? `<div class="play"><span>▶</span></div>` : ""}
+      </div>
+      <div class="meta">
+        <div class="t" title="${f.title.replace(/"/g, "&quot;")}">${f.title.replace(/</g, "&lt;")}</div>
+        <div class="s">${fmtSize(f.size)} · ${f.ext.toUpperCase()}
+          <a href="/download?file=${enc(f.file)}" onclick="event.stopPropagation()">Download</a>
+        </div>
+      </div>
+    </div>`;
+        }).join("");
+        // lazy thumbnails
+        grid.querySelectorAll("img[data-src]").forEach((img) => {
+          io.observe(img);
+        });
+        grid.querySelectorAll(".card").forEach((c) => {
+          c.onclick = () => {
+            if (c.dataset.play === "1") openAt(+c.dataset.i);
+            else
+              location.href = "/download?file=" + enc(VIEW[+c.dataset.i].file);
+          };
+        });
+      }
+      const io = new IntersectionObserver(
+        (ents) => {
+          ents.forEach((e) => {
+            if (e.isIntersecting) {
+              const img = e.target;
+              img.src = img.dataset.src;
+              img.onload = () => img.classList.add("loaded");
+              io.unobserve(img);
+            }
+          });
+        },
+        { rootMargin: "200px" },
+      );
+
+      /* ---------- player ---------- */
+      function openAt(i) {
+        curIdx = i;
+        const f = VIEW[i];
+        $("#ptitle").textContent = f.title;
+        $("#pdl").href = "/download?file=" + enc(f.file);
+        const v = $("#video");
+        v.src = "/stream?file=" + enc(f.file);
+        $("#modal").classList.add("open");
+        v.play().catch(() => {});
+      }
+      function next() {
+        // next playable in current view
+        for (let j = curIdx + 1; j < VIEW.length; j++) {
+          if (VIEW[j].ext === "mp4" || VIEW[j].ext === "webm") {
+            openAt(j);
+            return;
+          }
+        }
+        close();
+      }
+      function close() {
+        const v = $("#video");
+        v.pause();
+        v.removeAttribute("src");
+        v.load();
+        $("#modal").classList.remove("open");
+        curIdx = -1;
+      }
+      $("#pclose").onclick = close;
+      $("#pnext").onclick = next;
+      $("#video").addEventListener("ended", next);
+      $("#modal").addEventListener("click", (e) => {
+        if (e.target.id === "modal") close();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") close();
+      });
+
+      /* ---------- search ---------- */
+      let st;
+      $("#q").addEventListener("input", () => {
+        clearTimeout(st);
+        st = setTimeout(render, 120);
+      });
+
+      /* ---------- recover + jobs ---------- */
+      $("#go").onclick = start;
+      $("#target").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") start();
+      });
       async function start() {
         const target = $("#target").value.trim();
         if (!target) return;
@@ -417,7 +693,7 @@
           const r = await fetch("/api/recover", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ target, reuse: $("#reuse").checked }),
+            body: JSON.stringify({ target, reuse: true }),
           });
           const j = await r.json();
           if (j.error) alert(j.error);
@@ -427,117 +703,55 @@
         }
         $("#go").disabled = false;
       }
-      $("#go").onclick = start;
-      $("#target").addEventListener("keydown", (e) => {
-        if (e.key === "Enter") start();
-      });
-
-      const jobsEl = $("#jobs");
       const jobState = new Map();
       function renderJobs() {
-        const list = [...jobState.values()].sort(
-          (a, b) => b.startedAt - a.startedAt,
+        const list = [...jobState.values()]
+          .filter(
+            (j) => j.status !== "done" || Date.now() - j.startedAt < 60000,
+          )
+          .sort((a, b) => b.startedAt - a.startedAt);
+        const active = [...jobState.values()].some(
+          (j) => j.status === "discovering" || j.status === "recovering",
         );
-        if (!list.length) {
-          jobsEl.innerHTML =
-            '<div class="muted">No jobs yet. Start one above.</div>';
-          return;
-        }
-        jobsEl.innerHTML = list
+        $("#live").classList.toggle("on", active);
+        $("#liveTxt").textContent = active ? "recovering live" : "idle";
+        $("#jobs").innerHTML = list
           .map((j) => {
-            const pct = j.total
-              ? Math.round((j.attempted / j.total) * 100)
-              : j.status === "discovering"
-                ? 0
-                : 0;
-            const canCancel =
-              j.status === "discovering" ||
-              j.status === "recovering" ||
-              j.status === "queued";
-            return `<div class="job">
-      <div class="top">
-        <div><b>${j.label}</b> <span class="muted">· ${j.kind}</span></div>
-        <span class="pill ${j.status}">${j.status}</span>
-      </div>
-      <div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="stats">
-        <span>discovered <b>${j.discovered}</b></span>
-        <span>attempted <b>${j.attempted}</b>${j.total ? ` / ${j.total}` : ""}</span>
-        <span>recovered <b style="color:var(--ok)">${j.recovered}</b></span>
-        <span>unrecoverable <b>${j.failed}</b></span>
-        ${canCancel ? `<a href="#" class="muted" data-cancel="${j.id}" style="margin-left:auto">cancel</a>` : ""}
-      </div>
-      <div class="log">${(j.logs || [])
-        .slice(-8)
-        .map((l) => l.replace(/</g, "&lt;"))
-        .join("<br>")}</div>
-    </div>`;
+            const pct = j.total ? Math.round((j.attempted / j.total) * 100) : 0;
+            return `<div class="job"><div class="row">
+      <div><b>${j.label}</b> <span style="color:var(--mut)">· ${j.kind}</span></div>
+      <span class="chip ${j.status}">${j.status}</span></div>
+      <div class="track"><i style="width:${pct}%"></i></div>
+      <div class="jmeta"><span>found <b>${j.discovered}</b></span><span>tried <b>${j.attempted}</b>${j.total ? ` / ${j.total}` : ""}</span>
+      <span>recovered <b style="color:var(--ok)">${j.recovered}</b></span></div></div>`;
           })
           .join("");
-        jobsEl.querySelectorAll("[data-cancel]").forEach(
-          (a) =>
-            (a.onclick = async (e) => {
-              e.preventDefault();
-              await fetch("/api/jobs/" + a.dataset.cancel + "/cancel", {
-                method: "POST",
-              });
-            }),
-        );
       }
-
       function connect() {
         const es = new EventSource("/api/stream");
-        es.onopen = () => ($("#conn").textContent = "● live");
-        es.onerror = () => ($("#conn").textContent = "reconnecting…");
         es.onmessage = (e) => {
           try {
             const j = JSON.parse(e.data);
             jobState.set(j.id, j);
             renderJobs();
-            if (j.status === "done") loadFiles();
+            if (j.status === "done") load();
           } catch {}
         };
       }
 
-      async function loadFiles() {
+      /* ---------- load ---------- */
+      async function load() {
         try {
           const r = await fetch("/api/files");
-          const list = await r.json();
-          const el = $("#files");
-          if (!list.length) {
-            el.innerHTML = '<div class="muted">No recovered files yet.</div>';
-            return;
-          }
-          el.innerHTML =
-            `<div class="muted" style="margin-bottom:4px">${list.length} files · ${fmtSize(list.reduce((s, f) => s + f.size, 0))} total</div>` +
-            list
-              .map((f) => {
-                const ext = (f.file.split(".").pop() || "").toLowerCase();
-                const playable = ext === "mp4" || ext === "webm";
-                return `<div class="file">
-        <div class="name" title="${f.file.replace(/"/g, "")}">${f.file.replace(/</g, "&lt;")}</div>
-        <div style="display:flex;gap:10px;align-items:center">
-          <span class="meta">${fmtSize(f.size)}</span>
-          ${playable ? `<button class="play" data-file="${encodeURIComponent(f.file)}" data-name="${f.file.replace(/"/g, "&quot;")}">▶ Play</button>` : `<span class="meta" title="${ext} doesn't play in browsers — download to watch">⤓ only</span>`}
-          <a class="dl" href="/download?file=${encodeURIComponent(f.file)}">Download</a>
-        </div>
-      </div>`;
-              })
-              .join("");
-          el.querySelectorAll(".play").forEach(
-            (b) =>
-              (b.onclick = () => openPlayer(b.dataset.file, b.dataset.name)),
-          );
+          ALL = await r.json();
+          render();
         } catch (e) {
-          $("#files").innerHTML =
-            '<div class="muted">Failed to load files.</div>';
+          $("#grid").innerHTML = '<div class="empty">Failed to load.</div>';
         }
       }
-      $("#refresh").onclick = loadFiles;
-
       connect();
-      loadFiles();
-      setInterval(loadFiles, 15000);
+      load();
+      setInterval(load, 20000);
     </script>
   </body>
 </html>

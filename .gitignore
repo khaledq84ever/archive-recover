@@ -3,3 +3,6 @@ data/
 *.log
 .DS_Store
 /home/khaled/recovered_videos
+.thumbs/
+.meta.json
+tunnel.log
