@@ -238,11 +238,11 @@ function ytdlp(url) {
         "--no-progress",
         "--no-overwrites",
         "--retries",
-        "5",
+        "3",
         "--fragment-retries",
-        "5",
+        "8",
         "--socket-timeout",
-        "30",
+        "45",
         "-f",
         "bestvideo+bestaudio/best",
         "-o",
@@ -283,7 +283,7 @@ async function recoverMissing(ids) {
   let i = 0,
     fresh = 0,
     miss = 0;
-  const CONC = 3;
+  const CONC = 6;
   async function worker() {
     while (i < missing.length) {
       const id = missing[i++];
@@ -317,13 +317,26 @@ async function main() {
     pass++;
     log(`===== PASS ${pass} =====`);
     try {
-      const ids = await discover();
+      // Discovery is near-exhausted (~622 IDs). Re-scraping 11k snapshots every
+      // pass wastes archive bandwidth that's better spent patiently RETRYING the
+      // missing IDs (some only succeed when archive.org isn't throttling). So
+      // only re-discover on the first pass and every 6th pass (~once/2h); other
+      // passes load the cached candidate set and go straight to recovery.
+      let ids;
+      if (pass === 1 || pass % 6 === 0) {
+        ids = await discover();
+      } else {
+        ids = [...readSet(CAND_FULL)];
+        log(
+          `RECOVER-only pass: ${ids.length} cached candidate IDs (no re-scrape)`,
+        );
+      }
       await recoverMissing(ids);
     } catch (e) {
       log("pass error: " + (e?.message || e));
     }
     // gentle wait before re-checking the archive for new captures / retrying
-    const waitMin = 30;
+    const waitMin = 15;
     log(`PASS ${pass} complete. Sleeping ${waitMin}m before next sweep.`);
     writeStatus({ phase: "sleeping", nextPassInMin: waitMin, lastPass: pass });
     await new Promise((r) => setTimeout(r, waitMin * 60 * 1000));

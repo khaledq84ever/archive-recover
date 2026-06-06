@@ -4,7 +4,14 @@
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync, statSync, createReadStream } from "node:fs";
+import {
+  existsSync,
+  statSync,
+  createReadStream,
+  writeFileSync,
+  readFileSync,
+} from "node:fs";
+import { spawn } from "node:child_process";
 import { randomUUID, createHash } from "node:crypto";
 import { parseTarget, runJob, listRecovered } from "./recover.js";
 import { getThumb, getDuration } from "./media.js";
@@ -21,7 +28,10 @@ try {
 } catch {}
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "8mb" }));
+
+// Where the YouTube cookies file lives (used to beat the bot-wall on this IP).
+const COOKIES_PATH = path.join(DATA_ROOT, "cookies.txt");
 
 // ---- Optional password gate --------------------------------------------
 // If ACCESS_PASSWORD is set the whole site requires login; otherwise it's
@@ -148,6 +158,117 @@ app.post("/api/recover", (req, res) => {
   runJob(job).catch((e) => {
     job.status = "error";
     job.log("error: " + e.message);
+  });
+  res.json(snapshot(job));
+});
+
+// ---- Live-channel grab (needs YouTube cookies) --------------------------
+// The current channel's new uploads aren't on the Wayback Machine and this
+// VPS IP is bot-walled by YouTube, so downloading them needs a cookies file.
+// These endpoints let the user paste/upload cookies from the browser and
+// kick off the grab — no terminal/scp needed.
+
+app.get("/api/cookies/status", (_req, res) => {
+  try {
+    const txt = readFileSync(COOKIES_PATH, "utf8");
+    const lines = txt
+      .split("\n")
+      .filter((l) => l.trim() && !l.startsWith("#")).length;
+    res.json({
+      present: txt.trim().length > 0,
+      lines,
+      youtube: /youtube\.com/i.test(txt),
+      mtime: statSync(COOKIES_PATH).mtimeMs,
+    });
+  } catch {
+    res.json({ present: false, lines: 0, youtube: false, mtime: null });
+  }
+});
+
+app.post("/api/cookies", (req, res) => {
+  const txt = String(req.body?.cookies || "");
+  // Netscape cookies.txt is tab-separated and must contain youtube.com rows.
+  if (!/youtube\.com/i.test(txt) || !/\t/.test(txt)) {
+    return res.status(400).json({
+      error:
+        "That doesn't look like a YouTube cookies.txt. Export it with the 'Get cookies.txt LOCALLY' extension while on youtube.com (Netscape format).",
+    });
+  }
+  try {
+    writeFileSync(COOKIES_PATH, txt.endsWith("\n") ? txt : txt + "\n", {
+      mode: 0o600,
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+  res.json({ ok: true, bytes: txt.length });
+});
+
+let grabJob = null;
+app.post("/api/grab-live", (req, res) => {
+  if (grabJob && grabJob.status === "running")
+    return res
+      .status(409)
+      .json({ error: "A grab is already running.", id: grabJob.id });
+  if (!existsSync(COOKIES_PATH) || !statSync(COOKIES_PATH).size)
+    return res
+      .status(400)
+      .json({ error: "Upload your YouTube cookies first (button above)." });
+
+  const which =
+    req.body?.what === "reuploads" ? "grab_reuploads.sh" : "grab_live.sh";
+  const script = path.join(DATA_ROOT, which);
+  if (!existsSync(script))
+    return res.status(404).json({ error: `${which} not found on server.` });
+
+  const id = randomUUID().slice(0, 8);
+  const job = {
+    id,
+    target: { label: which.replace(".sh", ""), kind: "grab" },
+    outDir: DATA_ROOT,
+    status: "running",
+    discovered: 0,
+    total: 0,
+    attempted: 0,
+    newCount: 0,
+    alreadyHave: 0,
+    recovered: new Set(),
+    failed: new Set(),
+    logs: [],
+    cancelled: false,
+    startedAt: Date.now(),
+    log(m) {
+      this.logs.push(`[${new Date().toLocaleTimeString()}] ${m}`);
+      broadcast(this);
+    },
+  };
+  jobs.set(id, job);
+  grabJob = job;
+  job.log(`starting ${which} — downloading new videos at original quality…`);
+
+  const child = spawn("bash", [script], { cwd: DATA_ROOT });
+  const onData = (buf) =>
+    String(buf)
+      .split("\n")
+      .forEach((l) => {
+        const t = l.trim();
+        if (!t) return;
+        job.log(t);
+        if (/\[download\] Destination|Merging formats/.test(t)) {
+          job.attempted++;
+          job.newCount++;
+        }
+        if (/has already been recorded in the archive/.test(t))
+          job.alreadyHave++;
+      });
+  child.stdout.on("data", onData);
+  child.stderr.on("data", onData);
+  child.on("close", (code) => {
+    job.status = code === 0 ? "done" : "error";
+    job.log(
+      `grab finished (exit ${code}). new videos this run: ${job.newCount}`,
+    );
+    broadcast(job);
   });
   res.json(snapshot(job));
 });

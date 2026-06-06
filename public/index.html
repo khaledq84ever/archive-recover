@@ -199,6 +199,70 @@
         border: 1px solid var(--line);
       }
 
+      /* new-videos / cookies panel */
+      .newvids {
+        margin: 18px 0 0;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px 18px;
+      }
+      .nv-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .nv-head strong {
+        font-size: 15px;
+      }
+      .nv-status {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 11px;
+        border-radius: 999px;
+        background: var(--surface2);
+        color: var(--mut);
+      }
+      .nv-status.ok {
+        background: rgba(34, 197, 94, 0.15);
+        color: #4ade80;
+      }
+      .nv-status.bad {
+        background: rgba(244, 63, 94, 0.15);
+        color: #fb7185;
+      }
+      .nv-help {
+        margin: 8px 0 12px;
+        font-size: 13.5px;
+        color: var(--mut);
+        line-height: 1.5;
+      }
+      .nv-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .nv-how {
+        margin-top: 12px;
+        font-size: 13px;
+        color: var(--mut);
+      }
+      .nv-how summary {
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .nv-how ol {
+        margin: 10px 0 2px 18px;
+        line-height: 1.7;
+      }
+      .nv-how code {
+        background: var(--surface2);
+        padding: 1px 5px;
+        border-radius: 5px;
+      }
+
       /* jobs (compact, only when present) */
       #jobs {
         margin: 18px 0 0;
@@ -547,6 +611,48 @@
           />
           <button class="btn" id="go">Recover</button>
         </div>
+
+        <div class="newvids" id="newvids">
+          <div class="nv-head">
+            <strong>⬇ Get NEW videos from your live channel (74)</strong>
+            <span class="nv-status" id="ckStatus">checking…</span>
+          </div>
+          <p class="nv-help">
+            These aren't on the Internet Archive, and YouTube blocks this server
+            as a “bot”. Give it your YouTube cookies <em>once</em> and it can
+            download every new video at full quality. Nothing is shared — the
+            file stays on your server.
+          </p>
+          <div class="nv-row">
+            <input type="file" id="ckFile" accept=".txt" hidden />
+            <button class="btn ghost" id="ckPick">
+              1 · Upload cookies.txt
+            </button>
+            <button class="btn" id="grabLive" disabled>
+              2 · Download 74 new videos
+            </button>
+            <button class="btn ghost" id="grabRe" disabled>
+              + collab re-uploads
+            </button>
+          </div>
+          <details class="nv-how">
+            <summary>How do I get the cookies file? (phone, 1 minute)</summary>
+            <ol>
+              <li>
+                Install <b>Kiwi Browser</b> (Android) and log into youtube.com.
+              </li>
+              <li>
+                Add the <b>“Get cookies.txt LOCALLY”</b> extension from the
+                Chrome Web Store.
+              </li>
+              <li>
+                On youtube.com tap the extension → <b>Export</b> → it saves
+                <code>cookies.txt</code> to Downloads.
+              </li>
+              <li>Come back here and tap <b>“1 · Upload cookies.txt”</b>.</li>
+            </ol>
+          </details>
+        </div>
         <div id="jobs"></div>
       </section>
 
@@ -749,6 +855,73 @@
         }
         $("#go").disabled = false;
       }
+
+      /* ---------- new-videos: cookies + grab ---------- */
+      async function refreshCookies() {
+        try {
+          const s = await (await fetch("/api/cookies/status")).json();
+          const el = $("#ckStatus");
+          if (s.present && s.youtube) {
+            el.textContent = "✓ cookies ready (" + s.lines + " lines)";
+            el.className = "nv-status ok";
+            $("#grabLive").disabled = false;
+            $("#grabRe").disabled = false;
+          } else {
+            el.textContent = "no cookies yet";
+            el.className = "nv-status bad";
+            $("#grabLive").disabled = true;
+            $("#grabRe").disabled = true;
+          }
+        } catch {}
+      }
+      $("#ckPick").onclick = () => $("#ckFile").click();
+      $("#ckFile").addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        $("#ckStatus").textContent = "uploading…";
+        $("#ckStatus").className = "nv-status";
+        const cookies = await file.text();
+        try {
+          const r = await fetch("/api/cookies", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cookies }),
+          });
+          const j = await r.json();
+          if (j.error) {
+            alert(j.error);
+            $("#ckStatus").textContent = "upload failed";
+            $("#ckStatus").className = "nv-status bad";
+          } else {
+            await refreshCookies();
+          }
+        } catch (err) {
+          alert("Upload failed: " + err.message);
+        }
+        e.target.value = "";
+      });
+      async function grab(what, btn) {
+        btn.disabled = true;
+        const old = btn.textContent;
+        btn.textContent = "starting…";
+        try {
+          const r = await fetch("/api/grab-live", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ what }),
+          });
+          const j = await r.json();
+          if (j.error) alert(j.error);
+        } catch (e) {
+          alert("Failed: " + e.message);
+        }
+        btn.textContent = old;
+        setTimeout(refreshCookies, 1500);
+      }
+      $("#grabLive").onclick = (e) => grab("live", e.target);
+      $("#grabRe").onclick = (e) => grab("reuploads", e.target);
+      refreshCookies();
+
       const jobState = new Map();
       function renderJobs() {
         const list = [...jobState.values()]
