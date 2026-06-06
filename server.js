@@ -5,7 +5,7 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, statSync, createReadStream } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { parseTarget, runJob, listRecovered } from "./recover.js";
 import { getThumb, getDuration } from "./media.js";
 
@@ -15,8 +15,64 @@ const PORT = process.env.PORT || 3000;
 // show up immediately; new jobs can target their own subfolders.
 const DATA_ROOT = process.env.DATA_ROOT || "/home/khaled/recovered_videos";
 
+// Load a local .env (gitignored) so the password never lands in the repo.
+try {
+  process.loadEnvFile(path.join(__dirname, ".env"));
+} catch {}
+
 const app = express();
 app.use(express.json());
+
+// ---- Optional password gate --------------------------------------------
+// If ACCESS_PASSWORD is set the whole site requires login; otherwise it's
+// open (backwards compatible). The cookie holds a salted hash, not the pw.
+const PASSWORD = process.env.ACCESS_PASSWORD || "";
+const AUTH_TOKEN = PASSWORD
+  ? createHash("sha256")
+      .update("archive-recover:" + PASSWORD)
+      .digest("hex")
+  : "";
+
+function parseCookies(header) {
+  const out = {};
+  (header || "").split(";").forEach((p) => {
+    const i = p.indexOf("=");
+    if (i > -1)
+      out[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim());
+  });
+  return out;
+}
+
+app.get("/login", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+app.post("/api/login", (req, res) => {
+  if (!PASSWORD) return res.json({ ok: true });
+  if (req.body?.password === PASSWORD) {
+    res.setHeader(
+      "Set-Cookie",
+      `ar_auth=${AUTH_TOKEN}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${60 * 60 * 24 * 30}`,
+    );
+    return res.json({ ok: true });
+  }
+  res.status(401).json({ ok: false, error: "Wrong password" });
+});
+app.get("/logout", (req, res) => {
+  res.setHeader("Set-Cookie", "ar_auth=; HttpOnly; Path=/; Max-Age=0");
+  res.redirect("/login");
+});
+
+// Gate everything else when a password is configured.
+app.use((req, res, next) => {
+  if (!PASSWORD) return next();
+  if (req.path === "/login" || req.path === "/api/login") return next();
+  const cookies = parseCookies(req.headers.cookie);
+  if (cookies.ar_auth === AUTH_TOKEN) return next();
+  if (req.path.startsWith("/api/"))
+    return res.status(401).json({ error: "auth required" });
+  return res.redirect("/login");
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 /** @type {Map<string, any>} */

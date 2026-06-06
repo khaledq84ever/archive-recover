@@ -6,3 +6,4 @@ data/
 .thumbs/
 .meta.json
 tunnel.log
+.env

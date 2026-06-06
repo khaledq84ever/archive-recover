@@ -280,6 +280,30 @@
         color: var(--mut);
         font-size: 13px;
       }
+      #sort {
+        height: 36px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--txt);
+        padding: 0 10px;
+        font-size: 13px;
+        outline: none;
+        cursor: pointer;
+      }
+      .logout {
+        font-size: 12.5px;
+        color: var(--mut);
+        text-decoration: none;
+        border: 1px solid var(--line);
+        padding: 7px 12px;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+      .logout:hover {
+        color: var(--txt);
+        background: var(--surface2);
+      }
 
       /* gallery */
       .grid {
@@ -503,6 +527,7 @@
         <div class="live" id="live">
           <span class="pulse"></span><span id="liveTxt">idle</span>
         </div>
+        <a class="logout" href="/logout" title="Sign out">Sign out</a>
       </div>
     </div>
 
@@ -527,7 +552,17 @@
 
       <div class="sec">
         <h2>Library</h2>
-        <span class="count" id="count">Loading…</span>
+        <div style="display: flex; align-items: center; gap: 14px">
+          <span class="count" id="count">Loading…</span>
+          <select id="sort" title="Sort by">
+            <option value="new">Newest</option>
+            <option value="old">Oldest</option>
+            <option value="long">Longest</option>
+            <option value="short">Shortest</option>
+            <option value="az">Title A–Z</option>
+            <option value="big">Largest file</option>
+          </select>
+        </div>
       </div>
       <div id="grid" class="grid"></div>
       <footer>
@@ -583,7 +618,17 @@
                 f.title.toLowerCase().includes(q) ||
                 f.file.toLowerCase().includes(q),
             )
-          : ALL;
+          : ALL.slice();
+        const sort = $("#sort").value;
+        const cmp = {
+          new: (a, b) => b.mtime - a.mtime,
+          old: (a, b) => a.mtime - b.mtime,
+          long: (a, b) => (b.duration || 0) - (a.duration || 0),
+          short: (a, b) => (a.duration || 0) - (b.duration || 0),
+          az: (a, b) => a.title.localeCompare(b.title),
+          big: (a, b) => b.size - a.size,
+        }[sort];
+        if (cmp) VIEW.sort(cmp);
         $("#count").textContent =
           `${VIEW.length} video${VIEW.length !== 1 ? "s" : ""}${q ? ` · filtered` : ""} · ${fmtSize(VIEW.reduce((s, f) => s + f.size, 0))}`;
         const grid = $("#grid");
@@ -673,12 +718,13 @@
         if (e.key === "Escape") close();
       });
 
-      /* ---------- search ---------- */
+      /* ---------- search + sort ---------- */
       let st;
       $("#q").addEventListener("input", () => {
         clearTimeout(st);
         st = setTimeout(render, 120);
       });
+      $("#sort").addEventListener("change", render);
 
       /* ---------- recover + jobs ---------- */
       $("#go").onclick = start;
