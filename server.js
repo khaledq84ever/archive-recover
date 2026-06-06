@@ -131,14 +131,63 @@ app.get("/api/files", (req, res) => {
   res.json(listRecovered(dir));
 });
 
-// Download a recovered file
-app.get("/download", (req, res) => {
+// Resolve a request's file param to a real, existing path inside DATA_ROOT.
+function resolveFile(req) {
   const sub = req.query.dir ? path.basename(String(req.query.dir)) : "";
   const file = path.basename(String(req.query.file || ""));
   const full = path.join(sub ? path.join(DATA_ROOT, sub) : DATA_ROOT, file);
-  if (!existsSync(full) || !statSync(full).isFile())
-    return res.status(404).send("not found");
+  if (!existsSync(full) || !statSync(full).isFile()) return null;
+  return full;
+}
+
+const MIME = {
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".mkv": "video/x-matroska",
+  ".m4a": "audio/mp4",
+  ".mp3": "audio/mpeg",
+};
+
+// Download a recovered file (forces save dialog)
+app.get("/download", (req, res) => {
+  const full = resolveFile(req);
+  if (!full) return res.status(404).send("not found");
   res.download(full);
+});
+
+// Stream a recovered file for in-browser playback, with HTTP Range support
+// so the <video> player can seek and start instantly.
+app.get("/stream", (req, res) => {
+  const full = resolveFile(req);
+  if (!full) return res.status(404).send("not found");
+  const size = statSync(full).size;
+  const type =
+    MIME[path.extname(full).toLowerCase()] || "application/octet-stream";
+  const range = req.headers.range;
+
+  if (range) {
+    const m = /bytes=(\d*)-(\d*)/.exec(range);
+    const start = m && m[1] ? parseInt(m[1], 10) : 0;
+    const end = m && m[2] ? parseInt(m[2], 10) : size - 1;
+    if (start >= size || end >= size) {
+      res.status(416).set("Content-Range", `bytes */${size}`).end();
+      return;
+    }
+    res.status(206).set({
+      "Content-Range": `bytes ${start}-${end}/${size}`,
+      "Accept-Ranges": "bytes",
+      "Content-Length": end - start + 1,
+      "Content-Type": type,
+    });
+    createReadStream(full, { start, end }).pipe(res);
+  } else {
+    res.set({
+      "Content-Length": size,
+      "Content-Type": type,
+      "Accept-Ranges": "bytes",
+    });
+    createReadStream(full).pipe(res);
+  }
 });
 
 app.listen(PORT, () => {

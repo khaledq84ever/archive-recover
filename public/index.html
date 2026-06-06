@@ -234,6 +234,68 @@
         font-size: 13px;
         font-weight: 600;
       }
+      button.play {
+        background: var(--acc);
+        color: #fff;
+        border: 0;
+        padding: 7px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(2, 5, 12, 0.85);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+        padding: 20px;
+      }
+      .modal.open {
+        display: flex;
+      }
+      .modal .box {
+        background: #0b0f17;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        max-width: 1000px;
+        width: 100%;
+        overflow: hidden;
+      }
+      .modal .bar2 {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .modal .bar2 .t {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 600;
+      }
+      .modal .bar2 .x {
+        background: #243049;
+        border: 0;
+        color: #cfe0ff;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+        flex: 0 0 auto;
+      }
+      .modal video {
+        width: 100%;
+        max-height: 72vh;
+        background: #000;
+        display: block;
+      }
       .muted {
         color: var(--mut);
         font-size: 13px;
@@ -303,6 +365,40 @@
         <div id="files" class="files"><div class="muted">Loading…</div></div>
       </div>
     </div>
+
+    <div class="modal" id="player">
+      <div class="box">
+        <div class="bar2">
+          <span class="t" id="ptitle"></span>
+          <button class="x" id="pclose" title="Close">✕</button>
+        </div>
+        <video id="pvideo" controls playsinline preload="metadata"></video>
+      </div>
+    </div>
+
+    <script>
+      function openPlayer(encFile, name) {
+        const v = document.getElementById("pvideo");
+        document.getElementById("ptitle").textContent = name;
+        v.src = "/stream?file=" + encFile;
+        document.getElementById("player").classList.add("open");
+        v.play().catch(() => {});
+      }
+      function closePlayer() {
+        const v = document.getElementById("pvideo");
+        v.pause();
+        v.removeAttribute("src");
+        v.load();
+        document.getElementById("player").classList.remove("open");
+      }
+      document.getElementById("pclose").onclick = closePlayer;
+      document.getElementById("player").addEventListener("click", (e) => {
+        if (e.target.id === "player") closePlayer();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closePlayer();
+      });
+    </script>
 
     <script>
       const $ = (s) => document.querySelector(s);
@@ -415,16 +511,23 @@
           el.innerHTML =
             `<div class="muted" style="margin-bottom:4px">${list.length} files · ${fmtSize(list.reduce((s, f) => s + f.size, 0))} total</div>` +
             list
-              .map(
-                (f) => `<div class="file">
+              .map((f) => {
+                const ext = (f.file.split(".").pop() || "").toLowerCase();
+                const playable = ext === "mp4" || ext === "webm";
+                return `<div class="file">
         <div class="name" title="${f.file.replace(/"/g, "")}">${f.file.replace(/</g, "&lt;")}</div>
         <div style="display:flex;gap:10px;align-items:center">
           <span class="meta">${fmtSize(f.size)}</span>
+          ${playable ? `<button class="play" data-file="${encodeURIComponent(f.file)}" data-name="${f.file.replace(/"/g, "&quot;")}">▶ Play</button>` : `<span class="meta" title="${ext} doesn't play in browsers — download to watch">⤓ only</span>`}
           <a class="dl" href="/download?file=${encodeURIComponent(f.file)}">Download</a>
         </div>
-      </div>`,
-              )
+      </div>`;
+              })
               .join("");
+          el.querySelectorAll(".play").forEach(
+            (b) =>
+              (b.onclick = () => openPlayer(b.dataset.file, b.dataset.name)),
+          );
         } catch (e) {
           $("#files").innerHTML =
             '<div class="muted">Failed to load files.</div>';
