@@ -7,3 +7,8 @@ data/
 .meta.json
 tunnel.log
 .env
+candidates_full.txt
+candidates.original.txt
+titles.tsv
+deep_status.json
+deep_recover.log
