@@ -2,11 +2,42 @@
 // Archive (Wayback CDX) and pulls the best-quality stream the archive holds
 // via yt-dlp. Ported from the proven auto_recover.sh / retry_alt.sh logic.
 import { spawn } from "node:child_process";
-import { mkdirSync, existsSync, readdirSync, statSync } from "node:fs";
+import {
+  mkdirSync,
+  existsSync,
+  readdirSync,
+  statSync,
+  readFileSync,
+} from "node:fs";
 import path from "node:path";
 import https from "node:https";
 
 const ID_RE = /^[A-Za-z0-9_-]{11}$/;
+
+// Collect the set of video IDs already present in a folder (from the [id] tag).
+function idsOnDisk(dir) {
+  const set = new Set();
+  if (!existsSync(dir)) return set;
+  for (const f of readdirSync(dir)) {
+    const m = f.match(/\[([A-Za-z0-9_-]{11})\]/);
+    if (m) set.add(m[1]);
+  }
+  return set;
+}
+
+// Seed candidate IDs from a previous run's candidates.txt, if present, so a
+// channel job instantly knows the full known set instead of re-scraping.
+function seedCandidates(dir) {
+  const out = [];
+  const f = path.join(dir, "candidates.txt");
+  if (existsSync(f)) {
+    for (const line of readFileSync(f, "utf8").split("\n")) {
+      const id = line.trim();
+      if (ID_RE.test(id)) out.push(id);
+    }
+  }
+  return out;
+}
 
 // ---- small fetch helper that rides out the archive's 503/504 overloads ----
 function fetchText(url, { timeout = 90000, retries = 6 } = {}) {
@@ -226,24 +257,43 @@ export async function runJob(job) {
   if (job.target.kind === "video") {
     ids = [job.target.id];
   } else {
-    ids = await discover(job.target, job);
+    // Discover from the archive, then merge with any previously-known IDs so
+    // we always work from the full known set for this channel.
+    const discovered = await discover(job.target, job);
+    const seeded = seedCandidates(job.outDir);
+    ids = [...new Set([...discovered, ...seeded])];
+    job.log(
+      `${discovered.length} found via archive + ${seeded.length} from prior list → ${ids.length} known`,
+    );
   }
+
+  // Only fetch what's NOT already in the library. Anything already on disk is
+  // counted as "already have" and skipped — so adding the channel just grabs
+  // the missing videos.
+  const have = idsOnDisk(job.outDir);
+  job.alreadyHave = ids.filter((id) => have.has(id)).length;
+  job.recovered = new Set([...have].filter((id) => ids.includes(id)));
+  const missing = ids.filter((id) => !have.has(id));
+
   job.candidates = ids;
   job.total = ids.length;
   job.status = "recovering";
-  job.log(`recovering ${ids.length} candidate video(s) at best quality`);
+  job.log(
+    `${job.alreadyHave} already in library · fetching ${missing.length} missing video(s) at best quality`,
+  );
   job.emit();
 
   const CONC = 3;
   let idx = 0;
   async function worker() {
-    while (idx < ids.length && !job.cancelled) {
-      const id = ids[idx++];
+    while (idx < missing.length && !job.cancelled) {
+      const id = missing[idx++];
       job.attempted++;
       const r = await attempt(id, job.outDir);
       if (r.ok) {
         job.recovered.add(id);
-        job.log(`recovered ✅ ${id}${r.already ? " (already had)" : ""}`);
+        job.newCount = (job.newCount || 0) + 1;
+        job.log(`recovered ✅ ${id} (new)`);
       } else {
         job.failed.add(id);
       }
@@ -254,7 +304,7 @@ export async function runJob(job) {
 
   job.status = job.cancelled ? "cancelled" : "done";
   job.log(
-    `finished: ${job.recovered.size} recovered, ${job.failed.size} unrecoverable`,
+    `finished: ${job.newCount || 0} new recovered · ${job.alreadyHave} already had · ${job.failed.size} unrecoverable`,
   );
   job.emit();
 }

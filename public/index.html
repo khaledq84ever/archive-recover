@@ -768,8 +768,8 @@
       <div><b>${j.label}</b> <span style="color:var(--mut)">· ${j.kind}</span></div>
       <span class="chip ${j.status}">${j.status}</span></div>
       <div class="track"><i style="width:${pct}%"></i></div>
-      <div class="jmeta"><span>found <b>${j.discovered}</b></span><span>tried <b>${j.attempted}</b>${j.total ? ` / ${j.total}` : ""}</span>
-      <span>recovered <b style="color:var(--ok)">${j.recovered}</b></span></div></div>`;
+      <div class="jmeta"><span>known <b>${j.total || j.discovered}</b></span><span>already have <b>${j.alreadyHave || 0}</b></span>
+      <span>fetching <b>${j.attempted}</b></span><span>new <b style="color:var(--ok)">${j.newCount || 0}</b></span></div></div>`;
           })
           .join("");
       }
