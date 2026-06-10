@@ -341,7 +341,13 @@ app.get("/api/stream", (req, res) => {
   sseClients.add(res);
   for (const job of jobs.values())
     res.write(`data: ${JSON.stringify(snapshot(job))}\n\n`);
-  req.on("close", () => sseClients.delete(res));
+  // Keep-alive comment so idle streams (a job running quietly between log
+  // lines) aren't closed by a reverse proxy's read timeout.
+  const ping = setInterval(() => res.write(": ping\n\n"), 20000);
+  req.on("close", () => {
+    clearInterval(ping);
+    sseClients.delete(res);
+  });
 });
 
 // Turn an ugly recovery filename into a clean display title.
