@@ -709,8 +709,10 @@
         <div style="display: flex; align-items: center; gap: 14px">
           <span class="count" id="count">Loading…</span>
           <select id="sort" title="Sort by">
-            <option value="new">Newest</option>
-            <option value="old">Oldest</option>
+            <option value="upnew">Uploaded: newest first</option>
+            <option value="upold">Uploaded: oldest first</option>
+            <option value="new">Recovered: newest</option>
+            <option value="old">Recovered: oldest</option>
             <option value="long">Longest</option>
             <option value="short">Shortest</option>
             <option value="az">Title A–Z</option>
@@ -774,7 +776,19 @@
             )
           : ALL.slice();
         const sort = $("#sort").value;
+        // channel upload rank (0 = newest). Non-channel videos have no rank →
+        // sort them after the channel videos in both upload orders.
+        const RNK = (f) => (f.uploadRank == null ? Infinity : f.uploadRank);
         const cmp = {
+          upnew: (a, b) => RNK(a) - RNK(b),
+          upold: (a, b) => {
+            const ra = RNK(a),
+              rb = RNK(b);
+            if (ra === Infinity && rb === Infinity) return 0;
+            if (ra === Infinity) return 1;
+            if (rb === Infinity) return -1;
+            return rb - ra;
+          },
           new: (a, b) => b.mtime - a.mtime,
           old: (a, b) => a.mtime - b.mtime,
           long: (a, b) => (b.duration || 0) - (a.duration || 0),

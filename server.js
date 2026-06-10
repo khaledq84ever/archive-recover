@@ -13,7 +13,12 @@ import {
 } from "node:fs";
 import { spawn } from "node:child_process";
 import { randomUUID, createHash } from "node:crypto";
-import { parseTarget, runJob, listRecovered } from "./recover.js";
+import {
+  parseTarget,
+  runJob,
+  listRecovered,
+  checkAvailability,
+} from "./recover.js";
 import { getThumb, getDuration } from "./media.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,6 +37,26 @@ app.use(express.json({ limit: "8mb" }));
 
 // Where the YouTube cookies file lives (used to beat the bot-wall on this IP).
 const COOKIES_PATH = path.join(DATA_ROOT, "cookies.txt");
+
+// channel_order.json is the KhaleDQ84EveR channel's video IDs in YouTube's
+// listing order (index 0 = newest upload). Lets the UI sort by real upload
+// date, not just by when each file was recovered. Cached, re-read on change.
+const CHANNEL_ORDER_PATH = path.join(DATA_ROOT, "channel_order.json");
+let _chRank = null;
+let _chMtime = 0;
+function channelRankMap() {
+  try {
+    const m = statSync(CHANNEL_ORDER_PATH).mtimeMs;
+    if (!_chRank || m !== _chMtime) {
+      const ids = JSON.parse(readFileSync(CHANNEL_ORDER_PATH, "utf8"));
+      _chRank = new Map(ids.map((id, i) => [id, i]));
+      _chMtime = m;
+    }
+  } catch {
+    _chRank = new Map();
+  }
+  return _chRank;
+}
 
 // ---- Optional password gate --------------------------------------------
 // If ACCESS_PASSWORD is set the whole site requires login; otherwise it's
@@ -160,6 +185,19 @@ app.post("/api/recover", (req, res) => {
     job.log("error: " + e.message);
   });
   res.json(snapshot(job));
+});
+
+// ---- Instant availability check -----------------------------------------
+// Paste any YouTube video URL/ID and find out immediately whether the
+// Internet Archive has a snapshot — with the archived link, timestamp,
+// thumbnail, and legal fallback routes. No yt-dlp, no job; just a lookup.
+app.post("/api/check", async (req, res) => {
+  try {
+    const result = await checkAvailability(req.body?.target, DATA_ROOT);
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e.message || e) });
+  }
 });
 
 // ---- Live-channel grab (needs YouTube cookies) --------------------------
@@ -326,12 +364,16 @@ app.get("/api/files", async (req, res) => {
   const sub = req.query.dir ? path.basename(String(req.query.dir)) : "";
   const dir = sub ? path.join(DATA_ROOT, sub) : DATA_ROOT;
   const files = listRecovered(dir);
+  const rank = channelRankMap();
   const out = await Promise.all(
     files.map(async (f) => ({
       ...f,
       title: prettyTitle(f.file),
       ext: (f.file.split(".").pop() || "").toLowerCase(),
       duration: await getDuration(dir, f.file),
+      // position in the channel's upload order (0 = newest); null if the video
+      // isn't part of the KhaleDQ84EveR channel (e.g. older recoveries).
+      uploadRank: f.id != null && rank.has(f.id) ? rank.get(f.id) : null,
     })),
   );
   res.json(out);

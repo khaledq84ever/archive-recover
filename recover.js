@@ -116,6 +116,141 @@ export function parseTarget(raw) {
   return null;
 }
 
+// ---- Instant availability check (Wayback "available" API) ----------------
+// Given a single video URL/ID, ask the Internet Archive whether a snapshot
+// exists and return everything we can surface: the archived page link, the
+// snapshot timestamp, a thumbnail, whether we already hold the file, and
+// fallback recovery routes if nothing is archived. Fast, read-only, no yt-dlp.
+function fmtStamp(ts) {
+  // 20211016171502 -> 2021-10-16 17:15:02 UTC
+  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(ts || "");
+  return m ? `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}:${m[6]} UTC` : ts || null;
+}
+
+export async function checkAvailability(input, dataDir) {
+  const target = parseTarget(input);
+  if (!target)
+    return {
+      ok: false,
+      error: "Enter a valid YouTube video URL or 11-character video ID.",
+    };
+  if (target.kind !== "video")
+    return {
+      ok: false,
+      kind: target.kind,
+      error:
+        "Availability check works on one video. For a whole channel/user, use Recover.",
+    };
+
+  const id = target.id;
+  const watchUrl = `https://www.youtube.com/watch?v=${id}`;
+
+  // 1) Official Wayback availability API (fast, but it matches YouTube watch
+  //    URLs too strictly and usually returns nothing).
+  const apiUrl = `https://archive.org/wayback/available?url=${encodeURIComponent(
+    "youtube.com/watch?v=" + id,
+  )}`;
+  let closest = null;
+  try {
+    const j = JSON.parse(
+      await fetchText(apiUrl, { timeout: 30000, retries: 4 }),
+    );
+    const c = j?.archived_snapshots?.closest;
+    if (c && c.available)
+      closest = { url: c.url, timestamp: c.timestamp, status: c.status };
+  } catch {}
+
+  // 2) CDX prefix search — the reliable route for YouTube. Watch pages were
+  //    archived under variants like watch%3Fv%3D<id> / extra params, which the
+  //    availability API misses but a prefix match catches. Prefer a 200, newest.
+  if (!closest) {
+    const cdx = `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(
+      "youtube.com/watch?v=" + id,
+    )}&matchType=prefix&collapse=digest&output=json&limit=200&fl=timestamp,original,statuscode`;
+    try {
+      const rows = JSON.parse(
+        await fetchText(cdx, { timeout: 45000, retries: 3 }),
+      );
+      const data = Array.isArray(rows) ? rows.slice(1) : []; // drop header
+      const ok200 = data.filter((r) => r[2] === "200");
+      const pick = (ok200.length ? ok200 : data).sort((a, b) =>
+        b[0].localeCompare(a[0]),
+      )[0]; // newest timestamp first
+      if (pick)
+        closest = {
+          url: `https://web.archive.org/web/${pick[0]}/${pick[1]}`,
+          timestamp: pick[0],
+          status: pick[2],
+        };
+    } catch {}
+  }
+
+  // 3) Best-effort cached metadata via YouTube oEmbed (title/author if it
+  //    still resolves; deleted videos 404 here, which is fine).
+  let meta = null;
+  try {
+    const o = JSON.parse(
+      await fetchText(
+        `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(watchUrl)}`,
+        { timeout: 12000, retries: 1 },
+      ),
+    );
+    if (o && o.title) meta = { title: o.title, author: o.author_name || null };
+  } catch {}
+
+  // 4) Do we already hold the actual file?
+  const have = dataDir ? fileForId(dataDir, id) : null;
+
+  const archived = !!closest;
+  return {
+    ok: true,
+    id,
+    watchUrl,
+    archived,
+    alreadyRecovered: !!have,
+    file: have || null,
+    // thumbnails: the UI falls back maxres -> hq -> mq on <img> error.
+    thumbnails: [
+      `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
+      `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+      `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
+    ],
+    metadata: meta,
+    snapshot: archived
+      ? {
+          url: closest.url,
+          timestamp: closest.timestamp,
+          when: fmtStamp(closest.timestamp),
+          status: closest.status,
+          // direct link to view the archived page
+          viewUrl: `https://web.archive.org/web/${closest.timestamp}/${watchUrl}`,
+          // media route yt-dlp uses to actually pull the bytes
+          mediaUrl: `https://web.archive.org/web/2oe_/http://wayback-fakeurl.archive.org/yt/${id}`,
+        }
+      : null,
+    // legal fallback recovery routes when nothing is archived
+    fallbacks: archived
+      ? []
+      : [
+          {
+            label: "Search reuploads on YouTube",
+            url: `https://www.youtube.com/results?search_query=${id}`,
+          },
+          {
+            label: "Find mirrors via Google",
+            url: `https://www.google.com/search?q=%22${id}%22+youtube`,
+          },
+          {
+            label: "Cached metadata (filmot)",
+            url: `https://filmot.com/video/${id}`,
+          },
+        ],
+    message: archived
+      ? "Archived snapshot found on the Internet Archive."
+      : "No archived snapshot found. Try the fallback routes below.",
+  };
+}
+
 // Build the CDX url-prefixes to enumerate archived snapshots for a target.
 function cdxPrefixes(target) {
   if (target.kind === "user") {
