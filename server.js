@@ -427,8 +427,9 @@ app.get("/stream", (req, res) => {
   if (range) {
     const m = /bytes=(\d*)-(\d*)/.exec(range);
     const start = m && m[1] ? parseInt(m[1], 10) : 0;
-    const end = m && m[2] ? parseInt(m[2], 10) : size - 1;
-    if (start >= size || end >= size) {
+    let end = m && m[2] ? parseInt(m[2], 10) : size - 1;
+    if (end >= size) end = size - 1; // clamp over-requests (RFC 7233), don't 416
+    if (isNaN(start) || start > end || start >= size) {
       res.status(416).set("Content-Range", `bytes */${size}`).end();
       return;
     }
