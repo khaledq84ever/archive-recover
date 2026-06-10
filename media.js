@@ -19,18 +19,34 @@ function key(file) {
   return crypto.createHash("sha1").update(file).digest("hex").slice(0, 16);
 }
 
-function loadMeta(root) {
-  const p = path.join(root, META_FILE);
-  try {
-    return JSON.parse(readFileSync(p, "utf8"));
-  } catch {
-    return {};
+// In-memory meta cache per root. /api/files probes 100+ files concurrently;
+// the old read-modify-write of .meta.json per call meant each writer clobbered
+// the others (last write wins), so the cache barely persisted and every load
+// re-probed everything. Sharing one object and debouncing the write fixes both.
+const _meta = new Map(); // root -> { data, timer }
+
+function metaFor(root) {
+  let e = _meta.get(root);
+  if (!e) {
+    let data = {};
+    try {
+      data = JSON.parse(readFileSync(path.join(root, META_FILE), "utf8"));
+    } catch {}
+    e = { data, timer: null };
+    _meta.set(root, e);
   }
+  return e;
 }
-function saveMeta(root, meta) {
-  try {
-    writeFileSync(path.join(root, META_FILE), JSON.stringify(meta));
-  } catch {}
+
+function persistMeta(root) {
+  const e = _meta.get(root);
+  if (!e || e.timer) return; // a write is already scheduled; it'll include us
+  e.timer = setTimeout(() => {
+    e.timer = null;
+    try {
+      writeFileSync(path.join(root, META_FILE), JSON.stringify(e.data));
+    } catch {}
+  }, 500);
 }
 
 // Probe a video's duration (seconds), cached by file+size+mtime.
@@ -39,11 +55,11 @@ export function getDuration(root, file) {
     const full = path.join(root, file);
     if (!existsSync(full)) return resolve(null);
     const st = statSync(full);
-    const meta = loadMeta(root);
+    const e = metaFor(root);
     const k = key(file);
     const stamp = `${st.size}:${Math.round(st.mtimeMs)}`;
-    if (meta[k] && meta[k].stamp === stamp && meta[k].dur != null) {
-      return resolve(meta[k].dur);
+    if (e.data[k] && e.data[k].stamp === stamp && e.data[k].dur != null) {
+      return resolve(e.data[k].dur);
     }
     const p = spawn("ffprobe", [
       "-v",
@@ -60,8 +76,8 @@ export function getDuration(root, file) {
     p.on("close", () => {
       const dur = parseFloat(out.trim());
       const v = Number.isFinite(dur) ? Math.round(dur) : null;
-      meta[k] = { stamp, dur: v };
-      saveMeta(root, meta);
+      e.data[k] = { stamp, dur: v };
+      persistMeta(root);
       resolve(v);
     });
   });
