@@ -364,6 +364,22 @@ function prettyTitle(file) {
   );
 }
 
+// Run an async mapper over items with bounded concurrency, preserving order.
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker),
+  );
+  return out;
+}
+
 // List recovered files (optionally within a job's subfolder), enriched with
 // a clean title and (cached) duration.
 app.get("/api/files", async (req, res) => {
@@ -371,17 +387,17 @@ app.get("/api/files", async (req, res) => {
   const dir = sub ? path.join(DATA_ROOT, sub) : DATA_ROOT;
   const files = listRecovered(dir);
   const rank = channelRankMap();
-  const out = await Promise.all(
-    files.map(async (f) => ({
-      ...f,
-      title: prettyTitle(f.file),
-      ext: (f.file.split(".").pop() || "").toLowerCase(),
-      duration: await getDuration(dir, f.file),
-      // position in the channel's upload order (0 = newest); null if the video
-      // isn't part of the KhaleDQ84EveR channel (e.g. older recoveries).
-      uploadRank: f.id != null && rank.has(f.id) ? rank.get(f.id) : null,
-    })),
-  );
+  // Bounded concurrency: a cold cache would otherwise spawn one ffprobe per
+  // file all at once (100+ processes). Cap it so the first load can't spike.
+  const out = await mapLimit(files, 6, async (f) => ({
+    ...f,
+    title: prettyTitle(f.file),
+    ext: (f.file.split(".").pop() || "").toLowerCase(),
+    duration: await getDuration(dir, f.file),
+    // position in the channel's upload order (0 = newest); null if the video
+    // isn't part of the KhaleDQ84EveR channel (e.g. older recoveries).
+    uploadRank: f.id != null && rank.has(f.id) ? rank.get(f.id) : null,
+  }));
   res.json(out);
 });
 
