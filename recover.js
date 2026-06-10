@@ -201,12 +201,33 @@ export async function checkAvailability(input, dataDir) {
   // 4) Do we already hold the actual file?
   const have = dataDir ? fileForId(dataDir, id) : null;
 
-  const archived = !!closest;
+  // 5) Decisive recoverability check: is the VIDEO MEDIA actually in the Wayback
+  //    YouTube store? yt-dlp pulls bytes from wayback-fakeurl/yt/<id>; a
+  //    watch-page snapshot does NOT imply the media was archived — it 404s for
+  //    most ids even when the page exists. This, not the page snapshot, is what
+  //    determines whether we can actually download the video.
+  let mediaArchived = false;
+  try {
+    const mcdx = `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(
+      "wayback-fakeurl.archive.org/yt/" + id,
+    )}&output=json&limit=2`;
+    const rows = JSON.parse(
+      await fetchText(mcdx, { timeout: 30000, retries: 3 }),
+    );
+    mediaArchived = Array.isArray(rows) && rows.length > 1; // header + >=1 capture
+  } catch {}
+
+  const pageArchived = !!closest;
+  const downloadable = mediaArchived;
   return {
     ok: true,
     id,
     watchUrl,
-    archived,
+    // `archived` now means "actually downloadable from the Archive" so callers
+    // gating recovery on it aren't misled by page-only snapshots.
+    archived: downloadable,
+    downloadable,
+    pageArchived,
     alreadyRecovered: !!have,
     file: have || null,
     // thumbnails: the UI falls back maxres -> hq -> mq on <img> error.
@@ -216,7 +237,7 @@ export async function checkAvailability(input, dataDir) {
       `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
     ],
     metadata: meta,
-    snapshot: archived
+    snapshot: pageArchived
       ? {
           url: closest.url,
           timestamp: closest.timestamp,
@@ -224,12 +245,15 @@ export async function checkAvailability(input, dataDir) {
           status: closest.status,
           // direct link to view the archived page
           viewUrl: `https://web.archive.org/web/${closest.timestamp}/${watchUrl}`,
-          // media route yt-dlp uses to actually pull the bytes
-          mediaUrl: `https://web.archive.org/web/2oe_/http://wayback-fakeurl.archive.org/yt/${id}`,
+          // media route yt-dlp pulls bytes from — only present when archived
+          mediaUrl: downloadable
+            ? `https://web.archive.org/web/2oe_/http://wayback-fakeurl.archive.org/yt/${id}`
+            : null,
         }
       : null,
-    // legal fallback recovery routes when nothing is archived
-    fallbacks: archived
+    // Recovery from the Archive only works when the MEDIA is archived; offer
+    // fallback routes whenever it isn't — even if the page snapshot exists.
+    fallbacks: downloadable
       ? []
       : [
           {
@@ -245,9 +269,11 @@ export async function checkAvailability(input, dataDir) {
             url: `https://filmot.com/video/${id}`,
           },
         ],
-    message: archived
-      ? "Archived snapshot found on the Internet Archive."
-      : "No archived snapshot found. Try the fallback routes below.",
+    message: downloadable
+      ? "Video media is archived — recoverable from the Internet Archive."
+      : pageArchived
+        ? "Only the watch page is archived (no video media), so it can't be downloaded from the Archive. Try the fallback routes below."
+        : "No archived snapshot found. Try the fallback routes below.",
   };
 }
 
