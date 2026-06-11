@@ -71,14 +71,28 @@ export function getDuration(root, file) {
       full,
     ]);
     let out = "";
+    let settled = false;
+    const finish = (v) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(v);
+    };
+    // ffprobe can hang on a truncated/partial file (e.g. a cancelled .part);
+    // /api/files awaits this inside a bounded pool, so a hang would stall a
+    // worker and eventually freeze the gallery load. Kill it and move on.
+    const timer = setTimeout(() => {
+      p.kill("SIGKILL");
+      finish(null);
+    }, 15000);
     p.stdout.on("data", (c) => (out += c));
-    p.on("error", () => resolve(null));
+    p.on("error", () => finish(null));
     p.on("close", () => {
       const dur = parseFloat(out.trim());
       const v = Number.isFinite(dur) ? Math.round(dur) : null;
       e.data[k] = { stamp, dur: v };
       persistMeta(root);
-      resolve(v);
+      finish(v);
     });
   });
 }
@@ -94,6 +108,12 @@ export function getThumb(root, file) {
     const thumb = path.join(dir, key(file) + ".jpg");
     if (existsSync(thumb) && statSync(thumb).size > 0) return resolve(thumb);
 
+    let settled = false;
+    const done = (v) => {
+      if (settled) return;
+      settled = true;
+      resolve(v);
+    };
     const gen = (seekSec) => {
       const p = spawn("ffmpeg", [
         "-ss",
@@ -109,12 +129,22 @@ export function getThumb(root, file) {
         "-y",
         thumb,
       ]);
-      p.on("error", () => resolve(null));
+      // Bound it: a partial/corrupt file can make ffmpeg spin instead of exit.
+      const timer = setTimeout(() => {
+        p.kill("SIGKILL");
+        done(null);
+      }, 20000);
+      p.on("error", () => {
+        clearTimeout(timer);
+        done(null);
+      });
       p.on("close", () => {
-        if (existsSync(thumb) && statSync(thumb).size > 0) resolve(thumb);
+        clearTimeout(timer);
+        if (settled) return; // timed out and was killed
+        if (existsSync(thumb) && statSync(thumb).size > 0) done(thumb);
         else if (seekSec > 0)
           gen(0); // very short clip: retry at the first frame
-        else resolve(null);
+        else done(null);
       });
     };
     // seek to a small offset; fall back to 0 for tiny clips
