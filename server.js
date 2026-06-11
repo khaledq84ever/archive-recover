@@ -135,7 +135,16 @@ function snapshot(job) {
 
 function broadcast(job) {
   const payload = `data: ${JSON.stringify(snapshot(job))}\n\n`;
-  for (const res of sseClients) res.write(payload);
+  for (const res of sseClients) {
+    // A client can drop without 'close' firing yet; writing to it throws
+    // (ERR_STREAM_WRITE_AFTER_END). Swallow it and drop the dead client so a
+    // single stale stream can't break job.log() for everyone else.
+    try {
+      res.write(payload);
+    } catch {
+      sseClients.delete(res);
+    }
+  }
 }
 
 // ---- API ----------------------------------------------------------------
