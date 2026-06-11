@@ -331,7 +331,7 @@ async function discover(target, job) {
 }
 
 // Try to recover one id, trying several archive URL forms (best quality).
-function attempt(id, outDir) {
+function attempt(id, outDir, job) {
   const urls = [
     `https://web.archive.org/web/2oe_/http://wayback-fakeurl.archive.org/yt/${id}`,
     `https://web.archive.org/web/2/https://www.youtube.com/watch?v=${id}`,
@@ -342,14 +342,16 @@ function attempt(id, outDir) {
     // already on disk?
     if (fileForId(outDir, id)) return resolve({ ok: true, already: true });
     for (const u of urls) {
-      const ok = await runYtDlp(u, outDir);
+      // Stop walking the fallback URLs the moment a cancel comes in.
+      if (job?.cancelled) break;
+      const ok = await runYtDlp(u, outDir, job);
       if (ok && fileForId(outDir, id)) return resolve({ ok: true });
     }
     resolve({ ok: false });
   });
 }
 
-function runYtDlp(url, outDir) {
+function runYtDlp(url, outDir, job) {
   return new Promise((resolve) => {
     const p = spawn(
       "yt-dlp",
@@ -377,9 +379,16 @@ function runYtDlp(url, outDir) {
     const finish = (ok) => {
       if (!done) {
         done = true;
+        clearInterval(watch);
         resolve(ok);
       }
     };
+    // A cancel sets job.cancelled, but a download already in flight can run for
+    // minutes. Poll and SIGTERM the child so cancel actually stops the transfer
+    // instead of leaking bandwidth/CPU in the background.
+    const watch = setInterval(() => {
+      if (job?.cancelled) p.kill("SIGTERM");
+    }, 1000);
     p.on("error", () => finish(false));
     p.on("close", (code) => finish(code === 0));
   });
@@ -450,7 +459,7 @@ export async function runJob(job) {
     while (idx < missing.length && !job.cancelled) {
       const id = missing[idx++];
       job.attempted++;
-      const r = await attempt(id, job.outDir);
+      const r = await attempt(id, job.outDir, job);
       if (r.ok) {
         job.recovered.add(id);
         job.newCount = (job.newCount || 0) + 1;
