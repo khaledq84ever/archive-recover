@@ -1,5 +1,7 @@
 # 🎞️ Archive Recover
 
+[**🇸🇦 العربية**](README.ar.md)
+
 A self-hosted web app that **recovers deleted YouTube videos from the Internet Archive (Wayback Machine)** and turns them into a clean, modern, browsable video library — watch any recovered clip right in your browser or download the original file.
 
 Built on top of the proven `yt-dlp` + Wayback CDX recovery pipeline.
